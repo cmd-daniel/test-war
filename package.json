@@ -23,10 +23,10 @@
     ],
     "scripts": {
         "dev": "tsx ./src/server.ts",
-        "dev2": "node log.js dev & next dev -p 8080",
-        "build": "node log.js build & next build",
-        "dev-nolog": "next dev -p 8080",
-        "build-nolog": "next build"
+        "build": "next build",
+        "start": "NODE_ENV=production tsx ./src/server.ts",
+        "prod": "npm run build && npm start",
+        "lint": "next lint"
     },
     "dependencies": {
         "@colyseus/schema": "^3.0.60",
@@ -52,6 +52,7 @@
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
+        "eslint": "^9.35.0",
         "tsx": "^4.20.5",
         "tw-animate-css": "^1.3.8",
         "typescript": "^5"

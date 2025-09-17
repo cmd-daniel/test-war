@@ -42,11 +42,6 @@ export class MyRoom extends Room<MyState> {
     
     this.setState(this.state);
     
-    console.log("Room created with initial state:", {
-      playerCount: this.state.playerCount,
-      gameStatus: this.state.gameStatus,
-      playersSize: this.state.players.size
-    });
 
     // Handle player movement
     this.onMessage("move", (client, message: { x: number; y: number }) => {
@@ -77,9 +72,6 @@ export class MyRoom extends Room<MyState> {
   }
 
   onJoin(client: Client, options: { name?: string } = {}) {
-    console.log(client.sessionId, "joined!");
-    console.log("Join options:", options);
-    
     // Define player colors
     const playerColors = [
       "#3b82f6", // Blue
@@ -100,17 +92,8 @@ export class MyRoom extends Room<MyState> {
     const colorIndex = this.state.players.size % playerColors.length;
     player.color = playerColors[colorIndex];
     
-    console.log("Created player:", { 
-      name: player.name, 
-      color: player.color, 
-      sessionId: client.sessionId.substring(0, 6) 
-    });
-    
     this.state.players.set(client.sessionId, player);
     this.state.playerCount = this.state.players.size;
-    
-    console.log("Updated state - Player count:", this.state.playerCount);
-    console.log("Updated state - Game status before update:", this.state.gameStatus);
     
     // Update game status based on player count
     if (this.state.playerCount >= 2) {
@@ -119,11 +102,7 @@ export class MyRoom extends Room<MyState> {
       this.state.gameStatus = "waiting";
     }
     
-    console.log("Updated state - Game status after update:", this.state.gameStatus);
-    console.log("Total players in room:", this.state.players.size);
-    
     // Force state synchronization
-    console.log("Broadcasting state update...");
     this.broadcast("stateUpdate", {
       playerCount: this.state.playerCount,
       gameStatus: this.state.gameStatus,
@@ -132,9 +111,7 @@ export class MyRoom extends Room<MyState> {
 
     // Send player data explicitly
     const playersData: {[key: string]: any} = {};
-    console.log("Players in state:", this.state.players.size);
     this.state.players.forEach((player, sessionId) => {
-      console.log("Processing player:", sessionId, player.name, player.color);
       playersData[sessionId] = {
         name: player.name,
         x: player.x,
@@ -145,7 +122,6 @@ export class MyRoom extends Room<MyState> {
       };
     });
 
-    console.log("Broadcasting player update...", playersData);
     this.broadcast("playerUpdate", { players: playersData });
 
     // Send welcome message to new player
@@ -157,24 +133,15 @@ export class MyRoom extends Room<MyState> {
   }
 
   onLeave(client: Client, consented: boolean) {
-    console.log(client.sessionId, "left!");
-    console.log("Leave consented:", consented);
-    
     this.state.players.delete(client.sessionId);
     this.state.playerCount = this.state.players.size;
-    
-    console.log("After leave - Player count:", this.state.playerCount);
-    console.log("After leave - Game status before update:", this.state.gameStatus);
     
     // Update game status
     if (this.state.playerCount < 2) {
       this.state.gameStatus = "waiting";
     }
     
-    console.log("After leave - Game status after update:", this.state.gameStatus);
-    
     // Force state synchronization
-    console.log("Broadcasting leave state update...");
     this.broadcast("stateUpdate", {
       playerCount: this.state.playerCount,
       gameStatus: this.state.gameStatus,
@@ -194,11 +161,10 @@ export class MyRoom extends Room<MyState> {
       };
     });
 
-    console.log("Broadcasting leave player update...", playersData);
     this.broadcast("playerUpdate", { players: playersData });
   }
 
   onDispose() {
-    console.log("Room", this.roomId, "disposing...");
+    // Room cleanup
   }
 }

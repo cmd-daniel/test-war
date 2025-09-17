@@ -93,7 +93,6 @@ export const useColyseus = (
       isConnectingRef.current = true;
       setConnectionStatus('connecting');
       setError(null);
-      console.log('Attempting to connect to room:', roomName);
 
       // Clean up any existing connections
       if (roomRef.current) {
@@ -120,7 +119,6 @@ export const useColyseus = (
       setSessionId(roomInstance.sessionId);
       setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
-      console.log('Successfully connected to room:', roomInstance.roomId);
       
       // Initialize with default state to avoid undefined values
       setState({
@@ -129,11 +127,8 @@ export const useColyseus = (
         playerCount: 0
       });
 
-      console.log('Initialized default state');
-
       // Set up event listeners - simplified to avoid schema issues
       roomInstance.onStateChange((newState) => {
-        console.log('Raw state changed, but using explicit messages instead');
         // We'll rely on explicit message broadcasts instead of automatic schema sync
         // to avoid the schema mismatch issues
       });
@@ -159,21 +154,18 @@ export const useColyseus = (
 
       // Handle welcome message
       roomInstance.onMessage("welcome", (data) => {
-        console.log("Welcome to room:", data);
-        console.log("Room state after welcome:", roomInstance.state);
+        // Welcome message received
       });
 
       // Handle chat messages
       roomInstance.onMessage("chat", (data: {sessionId: string, message: string, timestamp: number}) => {
-        console.log("Chat message:", data);
         setMessages(prev => [...prev, data]);
       });
 
       // Listen for explicit state updates
       roomInstance.onMessage("stateUpdate", (data: { playerCount: number; gameStatus: string; playersCount: number }) => {
-        console.log('Explicit state update received:', data);
         // Force a state update with the received data
-        setState(prevState => ({
+        setState((prevState: any) => ({
           ...prevState,
           playerCount: data.playerCount,
           gameStatus: data.gameStatus
@@ -182,8 +174,7 @@ export const useColyseus = (
 
       // Listen for player updates
       roomInstance.onMessage("playerUpdate", (data: { players: any }) => {
-        console.log('Player update received:', data);
-        setState(prevState => ({
+        setState((prevState: any) => ({
           ...prevState,
           players: data.players
         }));

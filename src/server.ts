@@ -56,13 +56,42 @@ async function main() {
     handle(req, res);
   });
 
-  // Start both servers
+  // Start both servers with error handling
   wsServer.listen(WS_PORT, () => {
     console.log(`🎮 Colyseus WebSocket server running on ws://localhost:${WS_PORT}`);
   });
 
+  wsServer.on('error', (err) => {
+    console.error('WebSocket server error:', err);
+    process.exit(1);
+  });
+
   httpServer.listen(HTTP_PORT, () => {
     console.log(`✅ Next.js HTTP server running on http://localhost:${HTTP_PORT}`);
+  });
+
+  httpServer.on('error', (err) => {
+    console.error('HTTP server error:', err);
+    process.exit(1);
+  });
+
+  // Handle graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    httpServer.close(() => {
+      wsServer.close(() => {
+        process.exit(0);
+      });
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    httpServer.close(() => {
+      wsServer.close(() => {
+        process.exit(0);
+      });
+    });
   });
 }
 
