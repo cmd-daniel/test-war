@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Client, Room } from 'colyseus.js';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
@@ -46,7 +46,58 @@ export const useColyseus = (
     maxReconnectAttempts = 3
   } = hookOptions;
 
-  const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3003";
+  // Configure WebSocket URL with debugging
+  const wsConfig = useMemo(() => {
+    // Import utility functions
+    const getWebSocketConfig = () => {
+      // 1. Check for explicit environment variable
+      if (process.env.NEXT_PUBLIC_WS_URL) {
+        return {
+          url: process.env.NEXT_PUBLIC_WS_URL,
+          source: 'environment' as const,
+        };
+      }
+
+      // 2. Auto-detect in browser environment
+      if (typeof window !== 'undefined') {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const hostname = window.location.hostname;
+
+        // Development: assume local servers
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return {
+            url: 'ws://localhost:3003',
+            source: 'auto-detect-local' as const,
+          };
+        }
+
+        // Render.com pattern detection
+        if (hostname.includes('.onrender.com')) {
+          const baseName = hostname.replace('.onrender.com', '');
+          return {
+            url: `${protocol}//${baseName}-websocket.onrender.com`,
+            source: 'auto-detect-render' as const,
+          };
+        }
+
+        // Default: same host, port 3003
+        return {
+          url: `${protocol}//${hostname}:3003`,
+          source: 'fallback' as const,
+        };
+      }
+
+      // 3. Server-side fallback
+      return {
+        url: 'ws://localhost:3003',
+        source: 'fallback' as const,
+      };
+    };
+
+    return getWebSocketConfig();
+  }, []);
+
+  const WS_URL = wsConfig.url;
 
   const cleanup = useCallback(() => {
     console.log('Cleaning up connection...');
@@ -103,7 +154,15 @@ export const useColyseus = (
         }
       }
 
-      // Create new client
+      // Create new client with detailed logging
+      console.log('🔗 Connecting to WebSocket:', WS_URL);
+      console.log('📡 Connection source:', wsConfig.source);
+      if (wsConfig.source === 'auto-detect-render') {
+        console.log('💡 Auto-detected Render.com deployment pattern');
+      } else if (wsConfig.source === 'fallback') {
+        console.warn('⚠️ Using fallback URL - consider setting NEXT_PUBLIC_WS_URL explicitly');
+      }
+      
       clientRef.current = new Client(WS_URL);
 
       const roomInstance = await clientRef.current.joinOrCreate(roomName, roomOptions);
@@ -192,7 +251,7 @@ export const useColyseus = (
     } finally {
       isConnectingRef.current = false;
     }
-  }, [roomName, roomOptions, WS_URL, autoReconnect, maxReconnectAttempts]);
+  }, [roomName, roomOptions, WS_URL, autoReconnect, maxReconnectAttempts, wsConfig.source]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current || !shouldReconnectRef.current) return;
@@ -207,7 +266,7 @@ export const useColyseus = (
         connect();
       }
     }, reconnectInterval);
-  }, [connect, reconnectInterval]);
+  }, [reconnectInterval, connect]);
 
   const sendMessage = useCallback((type: string, data?: any) => {
     if (roomRef.current && connectionStatus === 'connected') {
@@ -246,7 +305,7 @@ export const useColyseus = (
       console.log('useColyseus hook unmounting, cleaning up...');
       cleanup();
     };
-  }, []); // Empty dependency array - only run on mount/unmount
+  }, [connect, cleanup]); // Include dependencies but use refs to avoid re-running
 
   return {
     room,
