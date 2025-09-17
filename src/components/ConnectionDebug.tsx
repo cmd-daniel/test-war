@@ -73,7 +73,7 @@ export const ConnectionDebug: React.FC<ConnectionDebugProps> = ({
             <span className="font-medium text-gray-600">Troubleshooting:</span>
             <ul className="mt-1 space-y-1 text-gray-600 text-xs list-disc list-inside">
               <li>Render free tier service may be sleeping (common)</li>
-              <li>Wait 30-60 seconds then click "Retry Connection"</li>
+              <li>Wait 30-60 seconds then click &quot;Retry Connection&quot;</li>
               <li>Avoid rapid refresh - app has built-in rate limiting</li>
               <li>Check browser console for detailed error logs</li>
               <li>If persistent, verify service status with health check</li>

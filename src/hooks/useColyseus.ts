@@ -326,6 +326,7 @@ export const useColyseus = (
       isConnectingRef.current = false;
     }
   }, [roomName, roomOptions]); // Minimal dependencies to reduce re-creation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current || !shouldReconnectRef.current) return;
@@ -370,6 +371,7 @@ export const useColyseus = (
       }
     }, 500); // Slightly longer delay for stability
   }, [cleanup]); // Remove connect from dependencies to avoid circular reference
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   // Initial connection - only run once on mount
   useEffect(() => {
