@@ -1,0 +1,59 @@
+{
+    "name": "template-nextjs",
+    "version": "1.2.0",
+    "description": "A Phaser 3 Next.js project template that demonstrates Next.js with React communication and uses Vite for bundling.",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/phaserjs/template-nextjs.git"
+    },
+    "author": "Phaser Studio <support@phaser.io> (https://phaser.io/)",
+    "license": "MIT",
+    "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+    "bugs": {
+        "url": "https://github.com/phaserjs/template-nextjs/issues"
+    },
+    "homepage": "https://github.com/phaserjs/template-nextjs#readme",
+    "keywords": [
+        "phaser",
+        "phaser3",
+        "next",
+        "nextjs",
+        "vite",
+        "typescript"
+    ],
+    "scripts": {
+        "dev": "tsx ./src/server.ts",
+        "dev2": "node log.js dev & next dev -p 8080",
+        "build": "node log.js build & next build",
+        "dev-nolog": "next dev -p 8080",
+        "build-nolog": "next build"
+    },
+    "dependencies": {
+        "@colyseus/schema": "^3.0.60",
+        "@radix-ui/react-slot": "^1.2.3",
+        "@tailwindcss/postcss": "^4.1.13",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "colyseus": "^0.16.4",
+        "colyseus.js": "^0.16.19",
+        "express": "^5.1.0",
+        "lucide-react": "^0.544.0",
+        "next": "15.3.1",
+        "phaser": "^3.90.0",
+        "postcss": "^8.5.6",
+        "react": "19.0.0",
+        "react-dom": "19.0.0",
+        "tailwind-merge": "^3.3.1",
+        "tailwindcss": "^4.1.13",
+        "ts-node": "^10.9.2"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.3",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "tsx": "^4.20.5",
+        "tw-animate-css": "^1.3.8",
+        "typescript": "^5"
+    }
+}
