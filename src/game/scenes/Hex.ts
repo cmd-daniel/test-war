@@ -1,4 +1,5 @@
 import { GameObjects, Scene } from 'phaser';
+import { EventBus } from '../EventBus';
 
 type AxialCoordinate = { q: number; r: number };
 
@@ -165,9 +166,8 @@ export class HexScene extends Scene {
 		hex.setData({ q, r, selected: false });
 
 		hex.on('pointerdown', () => {
-			const selected = Boolean(hex.getData('selected'));
-			hex.setFillStyle(selected ? 0x1e90ff : 0xffcc00, selected ? 0.3 : 0.8);
-			hex.setData('selected', !selected);
+			// Send hex selection to server instead of handling locally
+			EventBus.emit('hex-select', { q, r });
 		});
 
 		hex.on('pointerover', () => {
@@ -180,6 +180,36 @@ export class HexScene extends Scene {
         });
 
 		this.hexObjects.push(hex);
+	}
+
+	// Update hex visual based on server state
+	updateHexSelection(q: number, r: number, selectedBy: string, color: string) {
+		// Find the hex object with matching coordinates
+		const hex = this.hexObjects.find(hexObj => {
+			const hexData = hexObj.getData('q') === q && hexObj.getData('r') === r;
+			return hexData;
+		});
+
+		if (hex) {
+			if (selectedBy && color) {
+				// Hex is selected by a player
+				hex.setFillStyle(parseInt(color.replace('#', '0x')), 0.8);
+				hex.setData('selected', true);
+				hex.setData('selectedBy', selectedBy);
+				hex.setData('color', color);
+			} else {
+				// Hex is deselected
+				hex.setFillStyle(0x1e90ff, 0.3);
+				hex.setData('selected', false);
+				hex.setData('selectedBy', '');
+				hex.setData('color', '');
+			}
+		}
+	}
+
+	// Get all hex objects for external access
+	getHexObjects() {
+		return this.hexObjects;
 	}
 
 }

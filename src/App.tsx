@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Users, MessageCircle, Wifi, WifiOff } from 'lucide-react';
+import { ConnectionDebug } from './components/ConnectionDebug';
 
 function App()
 {
@@ -18,8 +19,11 @@ function App()
     const {
         state,
         connectionStatus,
+        error,
         sendMessage,
-        messages
+        messages,
+        reconnect,
+        wsUrl
     } = useColyseus("my_room");
 
     // Handle sending chat messages
@@ -27,6 +31,13 @@ function App()
         if (chatMessage.trim() && connectionStatus === 'connected') {
             sendMessage("chat", chatMessage);
             setChatMessage('');
+        }
+    };
+
+    // Handle hex selection from Phaser game
+    const handleHexSelect = (q: number, r: number) => {
+        if (connectionStatus === 'connected') {
+            sendMessage("hexSelect", { q, r });
         }
     };
 
@@ -46,7 +57,7 @@ function App()
             <div className="w-full py-4">
                 <div className="max-w-md mx-auto px-4">
                     <div id="game-container" className="w-full">
-                        <PhaserGame ref={phaserRef} />
+                        <PhaserGame ref={phaserRef} onHexSelect={handleHexSelect} />
                     </div>
                 </div>
             </div>
@@ -156,6 +167,16 @@ function App()
                         </CardContent>
                     </Card>
 
+                    {/* Connection Debug - Only show if there are persistent issues */}
+                    {(connectionStatus === 'error' || connectionStatus === 'reconnecting' || 
+                      (connectionStatus === 'connecting' && error)) && (
+                        <ConnectionDebug
+                            connectionStatus={connectionStatus}
+                            error={error}
+                            wsUrl={wsUrl}
+                            onReconnect={reconnect}
+                        />
+                    )}
 
                     {/* Footer */}
                     <div className="text-center py-4">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Client, Room } from 'colyseus.js';
+import { EventBus } from '../game/EventBus';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
 
@@ -19,6 +20,7 @@ export interface ColyseusHookReturn {
   reconnect: () => void;
   sessionId: string | null;
   messages: Array<{sessionId: string, message: string, timestamp: number}>;
+  wsUrl: string;
 }
 
 export const useColyseus = (
@@ -39,11 +41,13 @@ export const useColyseus = (
   const reconnectAttemptsRef = useRef<number>(0);
   const isConnectingRef = useRef<boolean>(false);
   const shouldReconnectRef = useRef<boolean>(true);
+  const lastConnectionAttemptRef = useRef<number>(0);
+  const connectionFailureCountRef = useRef<number>(0);
 
   const {
-    reconnect: autoReconnect = false, // Disable auto-reconnect by default
-    reconnectInterval = 3000,
-    maxReconnectAttempts = 3
+    reconnect: autoReconnect = false, // Disable auto-reconnect to prevent loops
+    reconnectInterval = 10000, // Much longer interval to reduce server load
+    maxReconnectAttempts = 3 // Fewer attempts to prevent spam
   } = hookOptions;
 
   // Configure WebSocket URL with debugging
@@ -129,6 +133,8 @@ export const useColyseus = (
   }, []);
 
   const connect = useCallback(async () => {
+    const now = Date.now();
+    
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       console.log('Connection already in progress, skipping...');
@@ -140,10 +146,35 @@ export const useColyseus = (
       return;
     }
 
+    // Rate limiting: prevent attempts more frequent than 5 seconds
+    const timeSinceLastAttempt = now - lastConnectionAttemptRef.current;
+    if (timeSinceLastAttempt < 5000) {
+      console.log(`🚫 Rate limiting: waiting ${5000 - timeSinceLastAttempt}ms before next attempt`);
+      return;
+    }
+
+    // Circuit breaker: if too many recent failures, wait longer
+    if (connectionFailureCountRef.current >= 3) {
+      const waitTime = Math.min(connectionFailureCountRef.current * 10000, 60000); // Max 1 minute
+      console.log(`🔥 Circuit breaker: too many failures, waiting ${waitTime}ms`);
+      setTimeout(() => {
+        connectionFailureCountRef.current = 0; // Reset after waiting
+      }, waitTime);
+      return;
+    }
+
     try {
+      lastConnectionAttemptRef.current = now;
       isConnectingRef.current = true;
       setConnectionStatus('connecting');
       setError(null);
+
+      // Add a delay for Render free tier, but only for retries
+      if (reconnectAttemptsRef.current > 0) {
+        const delayMs = Math.min(2000 * Math.pow(1.5, reconnectAttemptsRef.current), 15000); // Gentler exponential backoff
+        console.log(`⏳ Waiting ${delayMs}ms before connection attempt ${reconnectAttemptsRef.current + 1}`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
 
       // Clean up any existing connections
       if (roomRef.current) {
@@ -163,6 +194,7 @@ export const useColyseus = (
         console.warn('⚠️ Using fallback URL - consider setting NEXT_PUBLIC_WS_URL explicitly');
       }
       
+      // Create client - Colyseus will handle connection options internally
       clientRef.current = new Client(WS_URL);
 
       const roomInstance = await clientRef.current.joinOrCreate(roomName, roomOptions);
@@ -178,6 +210,7 @@ export const useColyseus = (
       setSessionId(roomInstance.sessionId);
       setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
+      connectionFailureCountRef.current = 0; // Reset failure count on successful connection
       
       // Initialize with default state to avoid undefined values
       setState({
@@ -239,19 +272,60 @@ export const useColyseus = (
         }));
       });
 
+      // Listen for hex updates
+      roomInstance.onMessage("hexUpdate", (data: { q: number; r: number; selectedBy: string; color: string; playerName: string }) => {
+        // Trigger EventBus to update Phaser scene
+        EventBus.emit('hex-update-from-server', {
+          q: data.q,
+          r: data.r,
+          selectedBy: data.selectedBy,
+          color: data.color
+        });
+      });
+
     } catch (err) {
       console.error('Failed to connect to room:', err);
-      setError(err instanceof Error ? err.message : 'Connection failed');
-      setConnectionStatus('error');
       
+      // Enhanced error logging for debugging
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        });
+      }
+      
+      // Check for specific error types
+      let errorMessage = 'Connection failed';
+      if (err instanceof Error) {
+        if (err.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          errorMessage = 'Server overloaded or sleeping (Render free tier). Try again in a moment.';
+        } else if (err.message.includes('ERR_NETWORK')) {
+          errorMessage = 'Network error - check your internet connection';
+        } else if (err.message.includes('ERR_CONNECTION_REFUSED')) {
+          errorMessage = 'Connection refused - server may be down';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
+      setConnectionStatus('error');
+      connectionFailureCountRef.current += 1; // Increment failure count
+      
+      console.log(`❌ Connection failed (${connectionFailureCountRef.current} recent failures)`);
+      
+      // Only auto-reconnect if explicitly enabled and within limits
       if (autoReconnect && shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
         console.log(`Connection failed, scheduling reconnect attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts}`);
         scheduleReconnect();
+      } else {
+        console.log('❌ Auto-reconnect disabled or max attempts reached. Use manual reconnect button.');
       }
     } finally {
       isConnectingRef.current = false;
     }
-  }, [roomName, roomOptions, WS_URL, autoReconnect, maxReconnectAttempts, wsConfig.source]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomName, roomOptions]); // Minimal dependencies to reduce re-creation
 
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current || !shouldReconnectRef.current) return;
@@ -284,8 +358,9 @@ export const useColyseus = (
   }, [cleanup]);
 
   const manualReconnect = useCallback(() => {
-    console.log('Manual reconnect requested');
+    console.log('🔄 Manual reconnect requested');
     reconnectAttemptsRef.current = 0;
+    connectionFailureCountRef.current = 0; // Reset failure count on manual reconnect
     shouldReconnectRef.current = true;
     cleanup();
     // Small delay to ensure cleanup is complete
@@ -293,19 +368,28 @@ export const useColyseus = (
       if (shouldReconnectRef.current) {
         connect();
       }
-    }, 100);
-  }, [cleanup, connect]);
+    }, 500); // Slightly longer delay for stability
+  }, [cleanup]); // Remove connect from dependencies to avoid circular reference
 
-  // Initial connection - only run once
+  // Initial connection - only run once on mount
   useEffect(() => {
     shouldReconnectRef.current = true;
-    connect();
+    
+    // Call connect directly without dependency to avoid infinite loop
+    const initialConnect = async () => {
+      console.log('🔄 Initial connection attempt...');
+      connect();
+    };
+    
+    initialConnect();
     
     return () => {
       console.log('useColyseus hook unmounting, cleaning up...');
       cleanup();
     };
-  }, [connect, cleanup]); // Include dependencies but use refs to avoid re-running
+    // Intentionally empty dependency array - only run on mount/unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     room,
@@ -316,6 +400,7 @@ export const useColyseus = (
     disconnect,
     reconnect: manualReconnect,
     sessionId,
-    messages
+    messages,
+    wsUrl: WS_URL // Expose WebSocket URL for debugging
   };
 };

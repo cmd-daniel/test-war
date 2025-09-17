@@ -7,7 +7,7 @@ const nextApp = next({ dev });
 const handle = nextApp.getRequestHandler();
 
 // Use Render's default PORT (10000) or environment variable
-const HTTP_PORT = Number(process.env.PORT) || 10000;
+const HTTP_PORT = Number(process.env.PORT) || 3002;
 
 async function main() {
   try {

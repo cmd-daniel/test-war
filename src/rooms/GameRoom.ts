@@ -21,9 +21,26 @@ export class Player extends Schema {
   color: string = "#3b82f6"; // Default blue color
 }
 
+export class HexCell extends Schema {
+  @type("number")
+  q: number = 0;
+  
+  @type("number")
+  r: number = 0;
+  
+  @type("string")
+  selectedBy: string = ""; // sessionId of player who selected it, empty if unselected
+  
+  @type("string")
+  color: string = ""; // color of the player who selected it
+}
+
 export class MyState extends Schema {
   @type({ map: Player }) 
   players = new MapSchema<Player>();
+  
+  @type({ map: HexCell })
+  hexGrid = new MapSchema<HexCell>();
   
   @type("string") 
   gameStatus: string = "waiting";
@@ -39,6 +56,9 @@ export class MyRoom extends Room<MyState> {
     // Initialize the state properly
     this.state.playerCount = 0;
     this.state.gameStatus = "waiting";
+    
+    // Initialize hex grid (matches the Phaser scene grid radius of 4)
+    this.initializeHexGrid(4);
     
     this.setState(this.state);
     
@@ -60,6 +80,35 @@ export class MyRoom extends Room<MyState> {
         message: message,
         timestamp: Date.now()
       });
+    });
+
+    // Handle hex selection
+    this.onMessage("hexSelect", (client, message: { q: number; r: number }) => {
+      const hexKey = `${message.q},${message.r}`;
+      const hexCell = this.state.hexGrid.get(hexKey);
+      const player = this.state.players.get(client.sessionId);
+      
+      if (hexCell && player) {
+        // Toggle selection
+        if (hexCell.selectedBy === client.sessionId) {
+          // Deselect if already selected by this player
+          hexCell.selectedBy = "";
+          hexCell.color = "";
+        } else {
+          // Select hex (or steal from another player)
+          hexCell.selectedBy = client.sessionId;
+          hexCell.color = player.color;
+        }
+        
+        // Broadcast hex update to all clients
+        this.broadcast("hexUpdate", {
+          q: message.q,
+          r: message.r,
+          selectedBy: hexCell.selectedBy,
+          color: hexCell.color,
+          playerName: hexCell.selectedBy ? player.name : ""
+        });
+      }
     });
 
     // Handle player status updates
@@ -162,6 +211,23 @@ export class MyRoom extends Room<MyState> {
     });
 
     this.broadcast("playerUpdate", { players: playersData });
+  }
+
+  // Initialize hex grid based on radius (same as Phaser scene)
+  private initializeHexGrid(radius: number) {
+    for (let q = -radius; q <= radius; q++) {
+      for (let r = -radius; r <= radius; r++) {
+        if (Math.abs(q) + Math.abs(r) + Math.abs(-q - r) <= radius * 2) {
+          const hexKey = `${q},${r}`;
+          const hexCell = new HexCell();
+          hexCell.q = q;
+          hexCell.r = r;
+          hexCell.selectedBy = "";
+          hexCell.color = "";
+          this.state.hexGrid.set(hexKey, hexCell);
+        }
+      }
+    }
   }
 
   onDispose() {
